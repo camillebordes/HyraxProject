@@ -1,0 +1,47 @@
+
+get_individual_list <- function(experiment) {
+  
+  year <- year(Experiments$start[Experiments$Number == experiment][1])
+  canyon <- stringr::str_to_lower(Experiments$Canyon[Experiments$Number == experiment])[1]
+  
+  Arugot <- openxlsx::read.xlsx(xlsxFile = paste0("~/Dropbox/Hyraxes/Raw data per year/", year, "/4. Hyraxes_group_", year, ".xlsx"), 
+                                sheet = 1, startRow = 5, colNames = FALSE)
+  David <- openxlsx::read.xlsx(xlsxFile = paste0("~/Dropbox/Hyraxes/Raw data per year/", year, "/4. Hyraxes_group_", year, ".xlsx"), 
+                               sheet = 2, startRow = 5, colNames = FALSE)
+  Outside <- openxlsx::read.xlsx(xlsxFile = paste0("~/Dropbox/Hyraxes/Raw data per year/", year, "/4. Hyraxes_group_", year, ".xlsx"), 
+                                 sheet = 3, startRow = 5, colNames = FALSE)
+  Arugot <- mutate(Arugot, Canyon = "arugot")
+  David <- mutate(David, Canyon = "david")
+  Outside <- mutate(Outside, Canyon = "outside")
+  Arugot[,4] <- "Adult"
+  David[,4] <- "Adult"
+  Outside[,13] <- "Adult"
+  for (i in 1:nrow(Arugot)) {
+    if (Arugot[i,3] %in% c(NA, 'Pup', 'Juv')) {
+      Arugot[i,4] <- Arugot[i,3]
+      Arugot[i,3] <- Arugot[i,13]
+    }else {next}
+  }
+  for (i in 1:nrow(David)) {
+    if (David[i,3] %in% c(NA, 'Pup', 'Juv')) {
+      David[i,4] <- David[i,3]
+      David[i,3] <- David[i,13]} else {next}
+  }
+  for (i in 1:nrow(Outside)) {
+    if (Outside[i,3] %in% c(NA, 'Pup', 'Juv')) {
+      Outside[i,13] <- Outside[i,3]
+      Outside[i,3] <- Outside[i,12]} else {next}
+  }
+  List_Individuals <- data.frame(Canyon = c(Arugot$Canyon, David$Canyon, Outside$Canyon), Group = c(Arugot[,1], David[,1], Outside[,1]), 
+                      Chip = c(Arugot[,2], David[,2], Outside[,2]), Common_ID = c(Arugot[,3], David[,3], Outside[,3]), 
+                      Age_Class = c(Arugot[,4], David[,4], Outside[,13]), Sex = c(Arugot[,6], David[,6], Outside[,5]),
+                      Weight = c(Arugot[,5], David[,5], Outside[,4]), H.rank = c(Arugot[,20], David[,19], Outside[,14]))
+  List_Individuals <- List_Individuals[complete.cases(List_Individuals[,3]),]
+  List_Individuals$Chip <- as.character(List_Individuals$Chip)
+  List_Individuals$Age_Class[is.na(List_Individuals$Age_Class)] <- "Adult"
+  
+  List_Individuals <- List_Individuals[stringr::str_to_lower(List_Individuals$Canyon) == canyon,]
+  
+  return(List_Individuals)
+    
+}
