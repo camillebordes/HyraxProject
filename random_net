@@ -1,0 +1,12 @@
+random_net <- function(Array) {
+
+    t <- 0
+    CV_observed <- 100*(sd(Array[1,,])/mean(Array[1,,]))
+    for (index in 1:perm) {
+      CV_random <- 100*(sd(Array[index+1,,])/mean(Array[index+1,,]))
+      if (CV_random >= CV_observed) {t <- t+1}
+    }
+  
+  return(t/perm)
+  
+}
