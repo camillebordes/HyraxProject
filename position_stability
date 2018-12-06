@@ -1,0 +1,27 @@
+# Position stability regarding eigenvector centrality
+position_stability <- function(array, exp_phase, experiment, perm) {
+
+    if (exp_phase == "Treatment") {line <- 1}
+    if (exp_phase == "Wolf") {line <- perm+2}
+    if (exp_phase == "Posttreatment" & experiment == "3a") {line <- 2*perm + 3}
+    if (exp_phase == "Posttreatment" & experiment != "3a") {line <- perm + 2}
+    
+        Graph_prev <- graph_from_adjacency_matrix(array[line,,], mode = "undirected", weighted = TRUE, diag = TRUE)
+        Graph_new  <- graph_from_adjacency_matrix(array[line+perm+1,,], mode = "undirected", weighted = TRUE, diag = TRUE)
+        b1 <- rank(eigen_centrality(Graph_prev, directed = F)$vector)
+        b2 <- rank(eigen_centrality(Graph_new , directed = F)$vector)
+        value <- matrix(0, nrow = max(length(b1), length(b2)), ncol = 2)
+        rownames(value) <- union_all(names(b1), setdiff(names(b2), names(b1)))
+        value[,1] <- b1[match(names(b1), rownames(value))]
+        value[,2] <- b1[match(names(b2), rownames(value))]
+        value <- as.data.frame(value)
+        
+        for (k in 1:nrow(value)) {
+          value$var[k] <- ifelse(value[k,1]==value[k,2], 1, 1-var(value[k,1], value[k,2]))
+        }
+        
+        position_stability <- data.frame(ID = rownames(value), R = value$var, Comment = paste0("Exp", experiment, "_", exp_phase))
+
+return(position_stability)
+  
+}
