@@ -1,0 +1,14 @@
+# Do animals prefer to interact with a given phenotype (trait) at the individual level?
+individual_assortment_continuous <- function(Adj, list_ind, trait, comment) {
+  
+  column <- match(trait, colnames(list_ind))
+  co <- c()
+  for (i in 1:nrow(Adj)) {
+    co <- c(co, Cor(Adj[i,],                                                             # Vector of edges weights for individual i
+                    as.numeric(list_ind[match(colnames(Adj), list_ind$Chip), column])))  # Vector of trait values for all individuals i interacts with
+  }
+  
+  table <- data.frame(ID = colnames(Adj), Index = co, Trait = list_ind[,column], Comment = exp_phase)
+  return(table)
+  
+}
