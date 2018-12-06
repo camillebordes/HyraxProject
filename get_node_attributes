@@ -1,0 +1,88 @@
+get_node_attributes <- function(Array, list_ind, perm, experiment) {
+  
+  Node_attr <- array(0, c(dim(Array)[1], dim(Array)[2], 34))
+  
+  for (step in 1:dim(Array)[1]) {
+    
+    if (between(step, (0*(perm+1)+1), (1*(perm+1)))) {exp_phase <- "Pretreatment"}
+    if (between(step, (1*(perm+1)+1), (2*(perm+1)))) {exp_phase <- "Treatment"}
+    if (between(step, (2*(perm+1)+1), (3*(perm+1))) & experiment == "3a") {exp_phase <- "Wolf"}
+    if (between(step, (2*(perm+1)+1), (3*(perm+1))) & experiment != "3a") {exp_phase <- "Posttreatment"}
+    if (between(step, (3*(perm+1)+1), (4*(perm+1)))) {exp_phase <- "Posttreatment"}
+    
+    Graph <- graph_from_adjacency_matrix(Array[step,,], mode = "undirected", weighted = TRUE, diag = TRUE)
+    if (step == (0*(perm+1) + 1)) {p_random <- random_net(Array[(step:(step+perm)),,])}
+    if (step == (1*(perm+1) + 1)) {p_random <- random_net(Array[(step:(step+perm)),,])}
+    if (step == (2*(perm+1) + 1)) {p_random <- random_net(Array[(step:(step+perm)),,])}
+    if (step == (3*(perm+1) + 1)) {p_random <- random_net(Array[(step:(step+perm)),,])}
+    
+    # Vertices attributes
+    V(Graph)$sex <- as.factor(list_ind$Sex[match(names(V(Graph)), list_ind$Chip)])
+    V(Graph)$group <- as.factor(list_ind$Group[match(names(V(Graph)), list_ind$Chip)])
+    V(Graph)$canyon <- as.factor(list_ind$Canyon[match(names(V(Graph)), list_ind$Chip)])
+    V(Graph)$age <- as.numeric(list_ind$Weight[match(names(V(Graph)), list_ind$Chip)])
+    V(Graph)$dominance <- as.numeric(list_ind$H.rank[match(names(V(Graph)), list_ind$Chip)])
+    V(Graph)$status <- as.factor(list_ind$Status[match(names(V(Graph)), list_ind$Chip)])
+    
+    # Individual assortativity preferences
+    table_dom <- individual_assortment_continuous(Array[step,,], list_ind, "H.rank", exp_phase)
+    table_age <- individual_assortment_continuous(Array[step,,], list_ind, "Weight", exp_phase)
+    
+    # Community detection & robustness
+    #stage <- c((0*(perm+1) + 1), (1*(perm+1) + 1), (2*(perm+1) + 1), (3*(perm+1) + 1))
+    #if (step %in% stage) {Community <- community_detection(Array, perm, step)}
+    Community <- igraph::fastgreedy.community(Graph, weights = E(Graph)$weight)
+    
+    # Network metrics
+    for (j in levels(as.factor(Community$membership))) {
+    
+      sub <- igraph::subgraph(Graph, v = Community$names[Community$membership==j])
+      sub <- as.undirected(sub, mode = c("collapse"), edge.attr.comb = "ignore")
+      a <- as_tbl_graph(sub) %>% activate(edges) %>% activate(nodes)
+      a <- as_tbl_graph(sub) %>% activate(edges) %>% activate(nodes) %>% 
+                                     mutate(experiment = experiment,
+                                            phase = exp_phase,
+                                            start = NA,
+                                            end = NA,
+                                            focal = target,
+                                            p_random = p_random,
+                                            #membership_robustness = Community$robustness[Community$membership==j],
+                                            size = graph_order(),
+                                            canyon_modularity = igraph::modularity(Graph, membership = Community$membership),
+                                            cluster_modularity = igraph::modularity(sub, membership = Community$membership),
+                                            canyon_transitivity = igraph::transitivity(Graph, type = "globalundirected", weights = E(Graph)$weight, vids = V(Graph)),
+                                            cluster_transitivity = igraph::transitivity(sub, type = "globalundirected", weights = E(sub)$weight, vids = V(sub)),
+                                            canyon_density = graph.density(Graph),
+                                            cluster_density = graph.density(sub),
+                                            deg_assor = graph_assortativity(centrality_degree(), directed = FALSE),
+                                            sex_assor = assortnet::assortment.discrete(Array[step,,], 
+                                                                                       types = as.factor(list_ind$Sex[match(colnames(Array[step,,]), list_ind$Chip)]), 
+                                                                                       weighted = T)$r,
+                                            age_assor = assortnet::assortment.continuous(Array[step,,], 
+                                                                                         vertex_values = list_ind$Weight[match(colnames(Array[step,,]), list_ind$Chip)],
+                                                                                         weighted = T)$r,
+                                            dom_assor = table_dom$Index[match(names(V(sub)), table_dom$ID)],
+                                            age_assor2 = table_age$Index[match(names(V(sub)), table_age$ID)],
+                                            degree = igraph::degree(sub),
+                                            degree_bis = centrality_degree(mode = "all", loops = F, normalized = TRUE)*100,
+                                            local_clustering = local_transitivity(weights = E(sub)$weight),
+                                            strength = if(graph_order()>1) {
+                                              centrality_degree(weights = E(sub)$weight, mode = "all", loops = F)*100/(graph_order()-1)} else{0},
+                                            eigen = centrality_eigen(weights = E(sub)$weight, directed = FALSE, scale = TRUE)*100,
+                                            info = centrality_information()*100,
+                                            closeness_arith = centrality_closeness(weights = E(sub)$weight, mode = "all", normalized = TRUE),
+                                            closeness_harmo = centrality_closeness_harmonic(),
+                                            betweenness = centrality_betweenness(weights = E(a)$weights, directed = FALSE, normalized = TRUE)*100)
+                                        
+    if (j == 1) {b <- as.data.frame(a)} else {b <- rbind(b, as.data.frame(a))}
+    
+    }
+    
+    for (k in 1: nrow(b)) {b$social_differentiation[k] <- var(Array[step, match(b$name[k],colnames(Array[step,,])),])*100}
+    Node_attr[step,,] <- as.matrix(b)
+    
+  }
+  
+  dimnames(Node_attr) <- list(c(1:dim(Array)[1]), row.names(b), colnames(b))
+  return(Node_attr)
+}
