@@ -1,0 +1,20 @@
+assortment_patterns <- function(Array, list_ind) {
+  
+  assor_sex <- assortnet::assortment.discrete(Array[1,,], types = as.factor(list_ind$Sex[match(colnames(Array[1,,]), list_ind$Chip)]), weighted = T)$r
+  assor_age <- assortnet::assortment.continuous(Array[1,,], vertex_values = list_ind$Weight[match(colnames(Array[1,,]), list_ind$Chip)], weighted = T)$r
+  assor_gro <- assortnet::assortment.discrete(Array[1,,], types = as.factor(list_ind$Group[match(colnames(Array[1,,]), list_ind$Chip)]), weighted = T)$r
+  
+  ts <- 0
+  ta <- 0
+  tg <- 0
+  
+  for (i in 1:perm) {
+    if (assortnet::assortment.discrete(Array[i+1,,], types = as.factor(list_ind$Sex[match(colnames(Array[1+i,,]), list_ind$Chip)]), weighted = T)$r >= assor_sex) {ts <- ts+1}
+    if (assortnet::assortment.continuous(Array[i+1,,], vertex_values = list_ind$Weight[match(colnames(Array[1+i,,]), list_ind$Chip)], weighted = T)$r >= assor_age) {ta <- ta+1}
+    if (assortnet::assortment.discrete(Array[i+1,,], types = as.factor(list_ind$Group[match(colnames(Array[1+i,,]), list_ind$Chip)]))$r >= assor_gro) {tg <- tg+1}
+  }
+  
+  table <- data.frame(category = c("sex", "age", "natal group"), index = c(assor_sex, assor_age, assor_gro), p = c(ts/1000, ta/1000, tg/1000))
+  return(table)
+  
+}
