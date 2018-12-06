@@ -1,0 +1,25 @@
+animate_line <- function(plotdata, x, y, group, color, span, name) {
+  
+  min <- min(plotdata$Moment)
+  max <- max(plotdata$Moment)
+  plotdata <- plotdata[sort(plotdata$Moment),]
+  
+  saveVideo(
+    for (i in 1:nrow(plotdata)) {
+    
+    file_path = paste0("/Users/bordescamille/Desktop/Vrac/plot", name, i, ".png")
+    Z <- plotdata[c(1:i),]
+    p <- ggplot(Z, aes(x = Z$Moment, y = Z$number)) + 
+      geom_point(aes(color = Z$Phase), size = 1) + 
+      geom_line(color = "grey80") + 
+      geom_smooth(method = "loess", span = span) +
+      theme_few() + 
+      ylab("Number of interactions") + 
+      xlab("Time") + 
+      scale_x_datetime(limits = c(min, max))
+    ggsave(file_path, p)
+    
+  }
+  , file.name = "test2.mp4", img.name = paste0(name,i,".png"))
+  
+}
