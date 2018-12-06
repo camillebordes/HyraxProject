@@ -1,0 +1,57 @@
+# Function to test for the consistency of individuals positions in the network (network-level)
+consistency_test <- function(value_matrix, N=10000, verbose=FALSE) {
+   cat("Test for consistency of network positions according to Wilson et al. (2013)\n")
+
+   # The p-values will be rounded to log(N) decimal places (more do not make sense).
+   d <- log(N, base=10)
+
+   if( verbose ) {
+      cat("Value matrix\n")
+      print(value_matrix)
+   }
+
+   # Just to assign the smallest ranks to the individuals with the biggest values (i.e. values are
+   # ranked in descending order) as it was done in the example in Wilson et al. 2013.
+   # (This is not necessary and does not affect the test.)
+   value_matrix <- -value_matrix
+
+   rank_matrix <- cbind( apply(value_matrix, 2, rank, ties.method="average") )
+   if( verbose ) {
+      cat("Rank matrix\n")
+      print(rank_matrix)
+   }
+
+   obs_score <- sum( apply(rank_matrix, 1, var) )
+   if( verbose ) {
+      cat("Observed score = ", obs_score, "\n", sep="" )
+   }
+
+   numEqualToObs <- 0
+   numLessThanObs <- 0
+   for( i in 1:(N-1) ) {
+      rank_matrix <- cbind( apply(rank_matrix, 2, sample) )  # permute each column
+      rnd_score <- sum( apply(rank_matrix, 1, var) )
+      if( rnd_score == obs_score ) {
+         numEqualToObs <- numEqualToObs + 1
+      } else if( rnd_score < obs_score ) {
+         numLessThanObs <- numLessThanObs + 1
+      }
+   }
+   min_obsRank <- numLessThanObs + 1
+   max_obsRank <- numLessThanObs + numEqualToObs + 1
+   rand_obsRank <- numLessThanObs + sample(0:numEqualToObs,1) + 1
+   min_p_value <- 1 - (N - min_obsRank) / N
+   max_p_value <- 1 - (N - max_obsRank) / N
+   rand_p_value <- 1 - (N - rand_obsRank) / N
+   if( verbose ) {
+      cat( "Values less than / equal to / greater than the observed one: ",
+           numLessThanObs, " / ", numEqualToObs, " / ", N - (numLessThanObs+numEqualToObs) - 1, "\n", sep="" )
+   }
+   if( numEqualToObs == 0 ) {
+      cat( "p-value = ", round(rand_p_value,digits=d), "\n", sep="" )
+   } else {
+      cat( "p-value = ", round(rand_p_value,digits=d), ", p-value range = [", round(min_p_value,digits=d),
+           ", ", round(max_p_value,digits=d), "]", sep="" )
+   }
+   return(rand_p_value)
+}
