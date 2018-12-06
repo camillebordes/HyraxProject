@@ -1,0 +1,59 @@
+# Build observed model
+A <- as.data.frame(LM_material[1,,])
+A$group <- as.factor(A$group)
+A$canyon <- as.factor(A$canyon)
+A$name <- as.factor(A$name)
+if (A$sex == "1") {A$status <- "F"}
+A$status[A$sex=="2" & A$group=="1"] <- "M"
+A$status[A$sex=="2" & A$group!="1"] <- "RM"
+mod1 <- lmer(as.numeric(as.character(strength))/100 ~ as.factor(phase) + as.numeric(as.character(dominance)) + as.numeric(as.character(age))*as.factor(status) + (1|canyon/group), data = A)
+coeff_obs1 <- car::Anova(mod1, type = "III")[, 1]
+coeff_obs2 <- c(colMeans(ranef(mod1)$canyon), colMeans(ranef(mod1)$`group:canyon`))
+
+relgrad <- with(mod1@optinfo$derivs, solve(Hessian, gradient))
+max(abs(relgrad))
+
+# Prepare test statistics
+p_models <- c(0, 0, 0, 0, 0, 0, 0)
+p_rando1 <- c(0, 0, 0)
+p_rando2 <- c(0, 0, 0)
+div <- 0
+
+# Calculate models for randomized datasets
+for (l in 1:perm) {
+  
+  B <- as.data.frame(LM_material[l+1,,])
+  B$group <- as.factor(B$group)
+  B$canyon <- as.factor(B$canyon)
+  B$name <- as.factor(B$name)
+  B$degree_bis[is.na(B$degree_bis)] <- 0
+  if (B$sex == "1") {B$status <- "F"}
+  B$status[B$sex=="2" & B$group=="1"] <- "M"
+  B$status[B$sex=="2" & B$group!="1"] <- "RM"
+  
+  error <- tryCatch(
+    mod2 <- glmer(as.numeric(as.character(degree_bis))/100 ~ as.factor(phase) + as.numeric(as.character(dominance)) + as.numeric(as.character(age))*as.factor(sex) + as.factor(status) + (1|canyon/group/name), family = binomial, data = B),
+    error=function(e) e
+  )
+  
+  if (inherits(error, "error")) next
+  
+  div <- div + 1    
+  coeff_rand1 <- car::Anova(mod2, type = "III")[,1]
+  coeff_rand2 <- c(colMeans(ranef(mod2)$canyon), colMeans(ranef(mod2)$`group:canyon`))
+  for (a in 1:length(coeff_obs1)) {
+    if (coeff_obs1[a] >= coeff_rand1[a]) {p_models[a] <- p_models[a] + 1}
+  }
+  for (b in 1:length(coeff_obs2)) {
+    if (coeff_obs2[b] <= coeff_rand2[b]) {p_rando1[b] <- p_rando1[b] + 1}
+    if (coeff_obs2[b] >= coeff_rand2[b]) {p_rando2[b] <- p_rando2[b] + 1}
+  }
+
+}
+
+p_rando1/div
+p_rando2/div
+
+p_models/div
+car::Anova(mod1, type = "III")
+summary(mod1)
