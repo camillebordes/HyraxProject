@@ -1,0 +1,36 @@
+community_detection <- function(Array, perm, step) {
+  
+  # Build the graph from observed Adjacency matrix (i.e. Array[step,,]) and calculates the observed membership
+  Graph <- graph_from_adjacency_matrix(Array[step,,], mode = "undirected", weighted = TRUE, diag = TRUE)
+  C <- edge.betweenness.community(Graph, directed = F)
+  
+  # Build a data.frame for observed and randomized membership
+  M <- matrix(0, nrow = length(C$name), ncol = 20)
+  colnames(M) <- c(1:20)
+  D <- cbind(data.frame(names = as.character(C$names), obs = C$membership, rob = NA, max = NA), M)
+  
+  # Counts how many times an animal is stored in each community
+  for (line in 1:perm){
+    Graph <- graph_from_adjacency_matrix(Array[(line+1),,], mode = "undirected", weighted = TRUE, diag = TRUE)
+    C <- edge.betweenness.community(Graph, directed = F)
+    for (d in 1:length(C$names)) {
+      l <- match(C$names[d], D$names)
+      c <- match(as.character(C$membership[d]), colnames(D))
+      D[l,c] <- D[l,c] + 1
+    }
+  }
+  
+  # Calculates the robustness of the observed membership & ID the most robust membership
+  for (i in 1:nrow(D)) {
+    col <- match(as.character(D$obs[i]), colnames(D))
+    D$rob[i] <- D[i,col]/perm*100
+    if (D$rob[i] < 60) {
+      D$max[i] <- names(which.max(D[i,c(5:24)]))
+    }
+  }
+  D$selected <- ifelse(is.na(D$max), D$obs, D$max)
+  
+  
+  return(data.frame(names = D$name, membership = D$obs, robustness = D$rob))
+  
+}
