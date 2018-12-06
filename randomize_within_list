@@ -1,0 +1,82 @@
+# Function for data-stream permutation -> creates an array of adjacency matrices
+randomize_within_list <- function(interaction_list, perm, list_ind, sub1) {
+  
+  # Divide the observed list of interact into 3 or 4 stages and build the adjacency matrices
+  for (k in 1:nrow(sub1)){
+    if (sub1$Phase[k]=="Pretreatment" & source=="loggers") {start <- sub1$start[k] + ddays(2)}
+    if (sub1$Phase[k]=="Pretreatment" & source=="observations") {start <- sub1$start[k]}
+    if (sub1$Phase[k]!="Pretreatment") {start <- sub1$start[k]}
+    interact <- interaction_list[between(interaction_list$Date, start, sub1$end[k]),]
+    
+    # Observed social networks
+    GBI <- get_group_by_individual(interact$Chip, data_format = "groups")
+    names <- colnames(GBI)
+    missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+    if (length(missing) > 0) {
+      GBI <- cbind(GBI, matrix(0, ncol = length(missing), nrow = nrow(GBI)))
+      colnames(GBI) <- c(names, as.character(missing))
+    }
+    Adjacency <- get_network(association_data = GBI, data_format = "GBI", association_index = 'SRI', identities = colnames(GBI))
+    Adjacency <- Adjacency[order(colnames(Adjacency)),] # sort the rows by names
+    Adjacency <- Adjacency[,order(colnames(Adjacency))] # sort the cols by names
+  
+    # Initializing array with the observation file
+    nline <- nrow(Adjacency)
+    A_temp <- array(0, c(perm+1, nline, nline))
+    A_temp[1,,] <- Adjacency
+    
+    if (k == 1) {A <- A_temp} else {A <- Abind(A, A_temp, along = 1)}
+  }
+  int <- interaction_list
+  
+  # Iterative data-stream permutations
+  for (iteration in 1:perm) {
+    
+    repeat {
+      # Randomly select two distinct individuals
+      focals <- sample(as.character(unique(int$Individual1)), 2)
+      ind1 <- as.character(focals[1])
+      ind2 <- as.character(focals[2])
+    
+      # Check these two individuals are different and pick two animals they interact with
+      if (ind1 != ind2) {
+        ind3 <- sample(as.character(unique(int$Individual2[int$Individual1 == ind1])), 1)
+        ind4 <- sample(as.character(unique(int$Individual2[int$Individual1 == ind2])), 1)
+        l1 <- sample(which(int$Individual1 == ind1 & int$Individual2 == ind3), 1)
+        l2 <- sample(which(int$Individual1 == ind2 & int$Individual2 == ind4), 1)
+        
+        # Check if the two interacting animals are different
+        if (!(ind3%in%c(ind1, ind2, ind4)) & !(ind4%in%c(ind1, ind2, ind3))) {
+          break;
+        }
+      }
+    }
+    int$Individual2[l1] <- ind4
+    int$Individual2[l2] <- ind3
+    int$Chip <- strsplit(paste0(int$Individual1, ":", int$Individual2), ":")
+    
+    for (it in 1:nrow(sub1)) {
+      if (sub1$Phase[it]=="Pretreatment" & source=="loggers") {start <- sub1$start[it] + ddays(2)}
+      if (sub1$Phase[it]=="Pretreatment" & source=="observations") {start <- sub1$start[it]}
+      if (sub1$Phase[it]!="Pretreatment") {start <- sub1$start[it]}
+      interact <- int[between(int$Date, start, sub1$end[it]),]
+      
+      # Permutated network incrementing the old network
+      GB <- get_group_by_individual(interact$Chip, data_format = "groups")
+      names <- colnames(GB)
+      missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+      if (length(missing) > 0) {
+        GB <- cbind(GB, matrix(0, ncol = length(missing), nrow = nrow(GB)))
+        colnames(GB) <- c(names, as.character(missing))
+      }
+      Adjacence <- get_network(association_data = GB, data_format = "GBI", association_index = 'SRI', identities = colnames(GB))
+      Adjacence <- Adjacence[order(colnames(Adjacence)),] # sort the rows by names
+      Adjacence <- Adjacence[,order(colnames(Adjacence))] # sort the cols by names
+      line <- iteration + 1 + (it-1)*(perm+1)
+      A[line,,] <- Adjacence
+    }
+    
+  }
+  dimnames(A) <- list(c(1:dim(A)[1]), colnames(Adjacence), colnames(Adjacence))
+  return(A)
+}
