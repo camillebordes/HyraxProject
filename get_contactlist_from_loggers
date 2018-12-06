@@ -1,0 +1,26 @@
+get_contactlist_from_loggers <- function(experiment, Experiments) {
+  
+# Calls and adapts the differents files needed for this R markdown
+LoggersBrut <- read.csv(file = paste0("~/Dropbox/Hyraxes/Raw data per year/2018/Proximity_data/Proximity_Loggers/DeployedLoggers.csv"), 
+                          header = TRUE, 
+                          sep = ";", 
+                          na = c("","NA"))
+Loggers <- LoggersBrut[!is.na(LoggersBrut$Date_on),]
+Loggers$Date_on  <- as.Date(strptime(Loggers$Date_on, "%d/%m/%Y %H:%M"))
+Loggers$Date_off <- as.Date(strptime(Loggers$Date_off, "%d/%m/%Y %H:%M"))
+Loggers <- select(Loggers, Chip, Tag, Old_collar, Number, Serial_number, Canyon, 
+                    Group, Sex, Weight, Date_on, Date_off, Seconds_off, Data_points, H.rank)
+Trapped <- Loggers[!is.na(Loggers$Date_off),]
+Trapped$DailyOffset <- as.numeric(seconds(Trapped$Seconds_off)/as.numeric(difftime(Trapped$Date_off, Trapped$Date_on)))
+List <- Loggers[is.na(Loggers$Date_off),]
+List$Date_off <- List$Date_on + months(8)
+
+Contactlist <- read.csv("~/Dropbox/Hyraxes/Projects/ProximityData_Camille_2018/03_Contactlist.csv", header = T, sep = ";")
+Contactlist$Interval <- as.POSIXct(strptime(as.character(Contactlist$Interval), format = "%d/%m/%Y %H:%M"))
+Contactlist$Start <- as.POSIXct(strptime(as.character(Contactlist$Start), format = "%d/%m/%Y %H:%M"))
+Contactlist$Date <- as.POSIXct(strptime(as.character(Contactlist$Date), format = "%d/%m/%Y"))
+Contactlist$Dyad <- strsplit(as.character(Contactlist$Dyad), ":")
+
+return(list(Contactlist, Loggers, List))
+
+}
