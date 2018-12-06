@@ -1,0 +1,91 @@
+randomize_between_list <- function(list1, list2, list_ind, perm) {
+  
+  # Observed social networks
+  GBI <- get_group_by_individual(list1$Chip, data_format = "groups")
+  names <- colnames(GBI)
+  missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+  if (length(missing) > 0) {
+    GBI <- cbind(GBI, matrix(0, ncol = length(missing), nrow = nrow(GBI)))
+    colnames(GBI) <- c(names, as.character(missing))
+  }
+  Adjacency <- get_network(association_data = GBI, data_format = "GBI", association_index = 'SRI', identities = colnames(GBI))
+  Adjacency <- Adjacency[order(colnames(Adjacency)),] # sort the rows by names
+  Adjacency <- Adjacency[,order(colnames(Adjacency))] # sort the cols by names
+  # Initializing array with the observation file
+  nline <- nrow(Adjacency)
+  A <- array(0, c(perm+1, nline, nline))
+  A[1,,] <- Adjacency
+  
+  # Observed social networks
+  GBI <- get_group_by_individual(list2$Chip, data_format = "groups")
+  names <- colnames(GBI)
+  missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+  if (length(missing) > 0) {
+    GBI <- cbind(GBI, matrix(0, ncol = length(missing), nrow = nrow(GBI)))
+    colnames(GBI) <- c(names, as.character(missing))
+  }
+  Adjacency <- get_network(association_data = GBI, data_format = "GBI", association_index = 'SRI', identities = colnames(GBI))
+  Adjacency <- Adjacency[order(colnames(Adjacency)),] # sort the rows by names
+  Adjacency <- Adjacency[,order(colnames(Adjacency))] # sort the cols by names
+  # Initializing array with the observation file
+  nline <- nrow(Adjacency)
+  B <- array(0, c(perm+1, nline, nline))
+  B[1,,] <- Adjacency
+  
+  # Iterative data-stream permutations
+  for (iteration in 1:perm) {
+    
+    repeat {
+      # Randomly select two distinct individuals
+      ind1 <- sample(as.character(unique(list1$Individual1)), 1)
+      ind2 <- sample(as.character(unique(list2$Individual1)), 1)
+    
+      # Check these two individuals are different and pick two animals they interact with
+      if (ind1 != ind2) {
+        ind3 <- sample(as.character(unique(list1$Individual2[list1$Individual1 == ind1])), 1)
+        ind4 <- sample(as.character(unique(list2$Individual2[list2$Individual1 == ind2])), 1)
+        l1 <- sample(which(list1$Individual1 == ind1 & list1$Individual2 == ind3), 1)
+        l2 <- sample(which(list2$Individual1 == ind2 & list2$Individual2 == ind4), 1)
+        
+        # Check if the two interacting animals are different
+        if (!(ind3%in%c(ind1, ind2, ind4)) & !(ind4%in%c(ind1, ind2, ind3))) {
+          break;
+        }
+      }
+    }
+    list1$Individual2[l1] <- ind4
+    list2$Individual2[l2] <- ind3
+    list1$Chip <- strsplit(paste0(list1$Individual1, ":", list1$Individual2), ":")
+    list2$Chip <- strsplit(paste0(list2$Individual1, ":", list2$Individual2), ":")
+    
+    # Permutated network incrementing the old network
+    GB <- get_group_by_individual(list1$Chip, data_format = "groups")
+    names <- colnames(GB)
+    missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+    if (length(missing) > 0) {
+      GB <- cbind(GB, matrix(0, ncol = length(missing), nrow = nrow(GB)))
+      colnames(GB) <- c(names, as.character(missing))
+    }
+    Adjacence <- get_network(association_data = GB, data_format = "GBI", association_index = 'SRI', identities = colnames(GB))
+    Adjacence <- Adjacence[order(colnames(Adjacence)),] # sort the rows by names
+    Adjacence <- Adjacence[,order(colnames(Adjacence))] # sort the cols by names
+    A[iteration+1,,] <- Adjacence
+    
+    # Permutated network incrementing the old network
+    GB <- get_group_by_individual(list2$Chip, data_format = "groups")
+    names <- colnames(GB)
+    missing <- c(setdiff(list_ind$Chip, names), setdiff(names, list_ind$Chip))
+    if (length(missing) > 0) {
+      GB <- cbind(GB, matrix(0, ncol = length(missing), nrow = nrow(GB)))
+      colnames(GB) <- c(names, as.character(missing))
+    }
+    Adjacence <- get_network(association_data = GB, data_format = "GBI", association_index = 'SRI', identities = colnames(GB))
+    Adjacence <- Adjacence[order(colnames(Adjacence)),] # sort the rows by names
+    Adjacence <- Adjacence[,order(colnames(Adjacence))] # sort the cols by names
+    B[iteration+1,,] <- Adjacence
+  }
+  dimnames(A) <- list(c(1:(perm+1)), colnames(Adjacence), colnames(Adjacence))
+  dimnames(B) <- list(c(1:(perm+1)), colnames(Adjacence), colnames(Adjacence))
+  return(list(A, B))
+  
+}
