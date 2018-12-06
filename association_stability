@@ -1,0 +1,23 @@
+association_stability <- function(array, perm, experiment, sub1) {
+  
+  for (p in 1:nrow(sub1)) {
+    
+    exp_phase <- sub1$Phase[p]
+    
+    if (p == 1) {pearson <- data.frame(name = NA, corr = NA, Comment = paste0("Exp", experiment, "_", exp_phase))} else {
+      
+      if (p == 2) {line <- 0*(perm+1) + 1}
+      if (p == 3) {line <- 1*(perm+1) + 1}
+      if (p == 4) {line <- 2*(perm+1) + 1}
+  
+      for (l in 1:nrow(array[line,,])) {
+          pearson <- rbind(pearson, data.frame(name = colnames(array[line,,])[l], 
+                                               corr = Cor(array[line+perm+1, l,], array[line, l,]), 
+                                               Comment = paste0("Exp", experiment, "_", exp_phase)))
+      }
+    }
+  }
+  
+  return(pearson)
+  
+}
