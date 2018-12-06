@@ -1,0 +1,114 @@
+compare_between_stage <- function(TimeEdgelist, start, end, agg_window, list_ind, perm, experiment) {
+  
+  start1 <- start
+  start2 <- start1 + ddays(1)
+  end1 <- start1 + agg_window
+  end2 <- start2 + agg_window
+  exp_phase <- NA
+  
+  while (end2 <= end) {
+    
+    list1 <- subset(TimeEdgelist, between(TimeEdgelist$Date, start1, end1))
+    list2 <- subset(TimeEdgelist, between(TimeEdgelist$Date, start2, end2))
+    
+    random_a <- randomize_between_list(list1, list2, list_ind, perm)
+    array <- Abind(random_a[[1]], random_a[[2]], along = 1)
+    random_m <- get_node_attributes(array, list_ind, perm, experiment)
+    metrics <- Abind(random_m[1:(perm+1),,], random_m[(perm+2):(2*perm + 2),,], along = 2)
+    
+    local_differences <- data.frame(point1 = rep(start1 + difftime(end1, start1, "hours"), 14),
+                                    point2 = rep(start2 + difftime(end2, start2, "hours"), 14),
+                                    experiment = rep(experiment, 14),
+                                    measure = c("canyon_density",
+                                                "cluster_density", 
+                                                "canyon_transitivity", 
+                                                "cluster_transitivity", 
+                                                "size", 
+                                                "canyon_modularity", 
+                                                "cluster_modularity", 
+                                                "local_clustering", 
+                                                "deg_assor", 
+                                                "sex_assor", 
+                                                "age_assor", 
+                                                "age_assor2", 
+                                                "social_differentiation", 
+                                                "association_stability"),
+                                    value = NA,
+                                    p.rand.inf = NA,
+                                    p.rand.sup = NA,
+                                    mean.rand = NA,
+                                    up.rand = NA,
+                                    low.rand = NA)
+    
+    for (i in 1:nrow(local_differences)) {
+    
+     if (local_differences$measure[i] == "association_stability") {
+        
+        # Association stability
+        local_differences$value[i] <- ecodist::mantel(as.dist(array[1,,])~as.dist(array[perm+2,,]))[1]
+        inf <- 0
+        sup <- 0
+        r <- c()
+        for (j in 1:perm) {
+          corr <- ecodist::mantel(as.dist(array[j+2,,])~as.dist(array[j+perm+2,,]))[1]
+          r <- c(r, corr)
+          if (local_differences$value[i] < corr) {inf <- inf+1}
+          if (local_differences$value[i] > corr) {sup <- sup+1}
+        }
+        local_differences$p.rand.inf[i] <- inf/perm
+        local_differences$p.rand.sup[i] <- sup/perm
+        local_differences$mean.rand[i] <- MeanCI(r, na.rm = T)[1]
+        local_differences$up.rand[i] <- MeanCI(r, na.rm = T)[3]
+        local_differences$low.rand[i] <- MeanCI(r, na.rm = T)[2]
+      
+      } else {
+      
+        # Store the observed value
+        d1 <- as.data.frame(metrics[1, (1:dim(array)[2]),])
+        d2 <- as.data.frame(metrics[1, (dim(array)[2]+1):(2*dim(array)[2]),])
+        x <- match(local_differences$measure[i], colnames(d1))
+        local_differences$value[i] <- mean(as.numeric(as.character(d2[, x])), na.rm = T) - mean(as.numeric(as.character(d1[, x])), na.rm = T)
+      
+        # Calculate statistical significance & random values
+        inf <- 0
+        sup <- 0
+        r <- c()
+        for (j in 1:perm) {
+          rand1 <- as.data.frame(metrics[j+1, (1:dim(array)[2]),])
+          rand2 <- as.data.frame(metrics[j+1, (dim(array)[2]+1):(2*dim(array)[2]),])
+          x <- match(local_differences$measure[i], colnames(rand1))
+          diffval <- mean(as.numeric(as.character(rand2[,x])), na.rm = T) - mean(as.numeric(as.character(rand1[,x])), na.rm = T)
+          if (!is.na(diffval) & !is.na(local_differences$value[i])) {
+            r <- c(r, as.numeric(as.character(rand2[,x])) - as.numeric(as.character(rand1[,x])))
+            if (abs(local_differences$value[i]) < abs(diffval)) {inf <- inf+1}
+            if (abs(local_differences$value[i]) > abs(diffval)) {sup <- sup+1}
+          } else {next}
+        }
+        
+        local_differences$p.rand.inf[i] <- inf/perm
+        local_differences$p.rand.sup[i] <- sup/perm
+        local_differences$mean.rand[i] <- MeanCI(r, na.rm = T)[1]
+        local_differences$up.rand[i] <- MeanCI(r, na.rm = T)[3]
+        local_differences$low.rand[i] <- MeanCI(r, na.rm = T)[2]
+        
+      }
+    }
+    
+    if (start1 == start) {
+      DiffStage <- as.data.frame(local_differences)
+      Metrics <- as.data.frame(metrics[1,(dim(array)[2]+1):(2*dim(array)[2]),])
+    } else {
+      DiffStage <- as.data.frame(rbind(DiffStage, local_differences))
+      Metrics <- as.data.frame(rbind(Metrics, metrics[1,(dim(array)[2]+1):(2*dim(array)[2]),]))
+    }
+    
+    start1 <- start1 + ddays(1)
+    start2 <- start2 + ddays(1)
+    end1 <- start1 + agg_window
+    end2 <- start2 + agg_window
+    
+  }
+  
+  return(DiffStage, Metrics)
+  
+}
