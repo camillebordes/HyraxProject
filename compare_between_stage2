@@ -1,0 +1,106 @@
+
+
+# This functions randomize within a unique list, across all stages, recalculates node attributes for each experimental stage and calculates differences between node attributes between adjacent stages.
+compare_between_stage2 <- function(TimeEdgelist, sub1) {
+  
+  t <- 2
+  transition <- c("Response", "Recovery")
+  if (experiment == "3a") {
+    t <- 3
+    transition <- c("Response", "Intensification", "Recovery")
+  }
+  
+  # Comparison of social dynamics between stages
+  DiffStage <- data.frame(experiment = rep(experiment, t*14),
+                         start = rep(exp_start, t*14),
+                         end = rep(exp_end, t*14),
+                         transition = rep(transition, 14),
+                         measure = c(rep("canyon_density", t),
+                                     rep("cluster_density", t),
+                                     rep("canyon_transitivity", t),
+                                     rep("cluster_transitivity", t),
+                                     rep("size", t), 
+                                     rep("canyon_modularity", t), 
+                                     rep("cluster_modularity", t), 
+                                     rep("local_clustering", t),
+                                     rep("deg_assor", t),
+                                     rep("sex_assor", t),
+                                     rep("age_assor", t),
+                                     rep("age_assor2", t),
+                                     rep("social_differentiation", t),
+                                     rep("association_stability", t)),
+                        value = NA,
+                        p.rand.inf = NA,
+                        p.rand.sup = NA,
+                        mean.rand = NA,
+                        up.rand = NA,
+                        low.rand = NA)
+  
+  for (i in 1:nrow(DiffStage)) {
+    
+    if (DiffStage$transition[i] == "Response") {
+      a <- 0
+    }
+    if (DiffStage$transition[i] == "Recovery") {
+      a <- 1
+    }
+    if (DiffStage$transition[i] == "Intensification") {
+      a <- 2
+    }
+    
+    array <- Array[((a*perm)+1):((a+2)*(perm+1)),,]
+    metrics <- LM_material[,(((a*dim(Array)[2])+1):((a+2)*dim(Array)[2])),]
+    
+    if (DiffStage$measure[i] == "association_stability") {
+      
+      # Association stability
+      DiffStage$value[i] <- ecodist::mantel(as.dist(array[1,,])~as.dist(array[perm+2,,]))[1]
+      inf <- 0
+      sup <- 0
+      r <- c()
+      for (j in 1:(perm+1)) {
+        corr <- ecodist::mantel(as.dist(array[j,,])~as.dist(array[j+perm+1,,]))[1]
+        r <- c(r, corr)
+        if (DiffStage$value[i] < corr) {inf <- inf+1}
+        if (DiffStage$value[i] > corr) {sup <- sup+1}
+      }
+      DiffStage$p.rand.inf[i] <- inf/perm
+      DiffStage$p.rand.sup[i] <- sup/perm
+      DiffStage$mean.rand[i] <- MeanCI(r, na.rm = T)[1]
+      DiffStage$up.rand[i] <- MeanCI(r, na.rm = T)[3]
+      DiffStage$low.rand[i] <- MeanCI(r, na.rm = T)[2]
+      
+    } else {
+      
+      # Store the observed value
+      d1 <- as.data.frame(metrics[1, (1:dim(array)[2]),])
+      d2 <- as.data.frame(metrics[1, (dim(array)[2]+1):(2*dim(array)[2]),])
+      x <- match(DiffStage$measure[i], colnames(d1))
+      DiffStage$value[i] <- mean(as.numeric(as.character(d1[, x])), na.rm = T) - mean(as.numeric(as.character(d2[, x])), na.rm = T)
+     
+      # Calculate statistical significance & random values
+      inf <- 0
+      sup <- 0
+      r <- c()
+      for (j in 1:perm) {
+        rand1 <- as.data.frame(metrics[j+1, (1:dim(array)[2]),])
+        rand2 <- as.data.frame(metrics[j+1, (dim(array)[2]+1):(2*dim(array)[2]),])
+        x <- match(DiffStage$measure[i], colnames(rand1))
+        diffval <- mean(as.numeric(as.character(rand1[,x])), na.rm = T) - mean(as.numeric(as.character(rand2[,x])), na.rm = T)
+        if (!is.na(diffval) & !is.na(DiffStage$value[i])) {
+          r <- c(r, as.numeric(as.character(rand1[,x])) - as.numeric(as.character(rand2[,x])))
+          if (abs(DiffStage$value[i]) < abs(diffval)) {inf <- inf+1}
+          if (abs(DiffStage$value[i]) > abs(diffval)) {sup <- sup+1}
+        } else {next}
+      }
+      DiffStage$p.rand.inf[i] <- inf/perm
+      DiffStage$p.rand.sup[i] <- sup/perm
+      DiffStage$mean.rand[i] <- MeanCI(r, na.rm = T)[1]
+      DiffStage$up.rand[i] <- MeanCI(r, na.rm = T)[3]
+      DiffStage$low.rand[i] <- MeanCI(r, na.rm = T)[2]
+    }
+  }
+  
+  return(DiffStage)
+
+}
